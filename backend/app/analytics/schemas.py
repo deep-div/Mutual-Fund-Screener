@@ -1,5 +1,5 @@
 from typing import Dict, Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class DrawdownDetails(BaseModel):
@@ -25,27 +25,21 @@ class SipMetrics(BaseModel):
 
 
 class YearConsistency(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     year: Optional[int]
-    return_: float
-
-    class Config:
-        fields = {"return_": "return"}
+    return_: float = Field(alias="return")
 
 
 class MonthConsistency(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     month: Optional[str]
-    return_: float
-
-    class Config:
-        fields = {"return_": "return"}
+    return_: float = Field(alias="return")
 
 
 class DayConsistency(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     date: Optional[str]
-    return_: float
-
-    class Config:
-        fields = {"return_": "return"}
+    return_: float = Field(alias="return")
 
 
 class ConsistencyMetrics(BaseModel):

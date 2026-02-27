@@ -3,6 +3,7 @@ import bisect
 from datetime import timedelta
 from app.shared.logger import logger
 from datetime import datetime
+from app.analytics.schemas import NavMetricsOutput
 
 class NavMetrics:
     """Compute absolute return, CAGR, MDD, YoY and Rolling CAGR from NAV history"""
@@ -804,8 +805,13 @@ class NavMetrics:
                 # "rolling_cagr_percent": self._rolling_cagr_all_periods()
             }
 
-            logger.info("NAV metrics calculated successfully")
-            return result
+            try:
+                validated_result = NavMetricsOutput(**result)
+                logger.info("NAV metrics validated successfully against output schema")
+                return json.loads(validated_result.model_dump_json(by_alias=True, exclude_none=True))
+            except Exception as schema_error:
+                logger.error(f"Output schema validation failed: {str(schema_error)}")
+                raise
 
         except Exception as e:
             logger.error(f"Metric calculation failed: {str(e)}")
