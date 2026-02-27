@@ -4,6 +4,12 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
+class InstrumentType(str, Enum):
+    """Financial instrument type enum."""
+    MUTUAL_FUND = "Mutual Fund"
+    STOCK = "Stock"
+    ETF = "ETF"
+    INDEX = "Index"
 
 class AssetClass(str, Enum):
     """Asset class enum."""
@@ -34,6 +40,7 @@ class SchemeType(str, Enum):
 
 
 class SchemeMeta(BaseModel):
+    instrument_type: InstrumentType
     scheme_code: int
     fund_house: str
     scheme_name: str

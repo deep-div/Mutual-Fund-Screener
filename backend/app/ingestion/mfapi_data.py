@@ -5,6 +5,7 @@ import nest_asyncio
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 from app.ingestion.schemas import (
+    InstrumentType,
     MutualFundNavResponse,
     SchemeMeta,
     AssetClass,
@@ -104,33 +105,34 @@ class MFAPIFetcher:
             scheme_sub_category = right.strip()
             left = left.strip().lower()
             if "equity" in left:
-                asset_class = AssetClass.EQUITY
+                asset_class = AssetClass.EQUITY.value
             elif "debt" in left:
-                asset_class = AssetClass.DEBT
+                asset_class = AssetClass.DEBT.value
             elif "hybrid" in left:
-                asset_class = AssetClass.HYBRID
+                asset_class = AssetClass.HYBRID.value
             else:
-                asset_class = AssetClass.OTHER
+                asset_class = AssetClass.OTHER.value
 
         # Option Type
         if "growth" in name_lower:
-            option_type = OptionType.GROWTH
+            option_type = OptionType.GROWTH.value
         elif "idcw" in name_lower:
-            option_type = OptionType.IDCW
+            option_type = OptionType.IDCW.value
         elif "bonus" in name_lower:
-            option_type = OptionType.BONUS
+            option_type = OptionType.BONUS.value
         else:
             option_type = None
 
         # Plan Type
         if "direct" in name_lower:
-            plan_type = PlanType.DIRECT
+            plan_type = PlanType.DIRECT.value
         elif "regular" in name_lower:
-            plan_type = PlanType.REGULAR
+            plan_type = PlanType.REGULAR.value
         else:
             plan_type = None
 
         return SchemeMeta(
+            instrument_type=InstrumentType.MUTUAL_FUND.value,
             scheme_code=scheme_code,
             fund_house=fund_house,
             asset_class=asset_class,
@@ -161,12 +163,12 @@ class MFAPIFetcher:
                         enriched_meta = self._build_scheme_meta(meta_raw)
 
                         # STEP 2: Inject enriched meta
-                        raw["meta"] = enriched_meta.model_dump()
+                        raw["meta"] = enriched_meta.model_dump(mode="json")
 
                         # STEP 3: Final validation (only once)
                         validated = MutualFundNavResponse.model_validate(raw)
 
-                        return validated.model_dump()
+                        return validated.model_dump(mode="json")
 
                     except Exception as e:
                         logger.warning(f"Validation failed for scheme_code={scheme_code}: {e}")
@@ -216,13 +218,12 @@ class MFAPIFetcher:
 
             return final_results
 
-
 # if __name__ == "__main__":
 #     try:
 #         fetcher = MFAPIFetcher(max_concurrent=50)
 #         days = 7
 #         schemes_list = fetcher.fetch_recent_active_schemes(days)
-#         data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list))
+#         data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list[:10]))
 #         logger.info("Execution completed successfully")
 #     except Exception as e:
 #         logger.error(f"Fatal error in main execution: {e}")
