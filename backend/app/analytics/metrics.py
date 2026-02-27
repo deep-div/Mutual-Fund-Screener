@@ -159,6 +159,50 @@ class NavMetrics:
             "recovery_duration_days": recovery_days,
             "recovery_duration_navs": recovery_navs
         }
+    def _current_drawdown_details(self):
+        """Calculate current drawdown from latest NAV against running peak"""
+        if not self.nav_data:
+            return {
+                "max_drawdown_percent": 0.0,
+                "peak_date": None,
+                "peak_nav": None,
+                "trough_date": None,
+                "trough_nav": None,
+                "recovery_date": None,
+                "recovery_nav": None,
+                "drawdown_duration_days": 0,
+                "drawdown_duration_navs": 0,
+                "recovery_duration_days": None,
+                "recovery_duration_navs": None,
+            }
+
+        peak_nav = self.nav_data[0]["nav"]
+        peak_idx = 0
+        for i, entry in enumerate(self.nav_data):
+            if entry["nav"] >= peak_nav:
+                peak_nav = entry["nav"]
+                peak_idx = i
+
+        latest_idx = len(self.nav_data) - 1
+        latest_entry = self.nav_data[latest_idx]
+        peak_entry = self.nav_data[peak_idx]
+
+        current_dd = ((latest_entry["nav"] - peak_nav) / peak_nav) * 100 if peak_nav != 0 else 0.0
+        is_recovered = latest_entry["nav"] >= peak_nav
+
+        return {
+            "max_drawdown_percent": round(current_dd, 2),
+            "peak_date": peak_entry["date"].isoformat(),
+            "peak_nav": round(peak_entry["nav"], 4),
+            "trough_date": latest_entry["date"].isoformat(),
+            "trough_nav": round(latest_entry["nav"], 4),
+            "recovery_date": latest_entry["date"].isoformat() if is_recovered else None,
+            "recovery_nav": round(latest_entry["nav"], 4) if is_recovered else None,
+            "drawdown_duration_days": (latest_entry["date"] - peak_entry["date"]).days,
+            "drawdown_duration_navs": latest_idx - peak_idx,
+            "recovery_duration_days": 0 if is_recovered else None,
+            "recovery_duration_navs": 0 if is_recovered else None,
+        }
     def _yearly_mdd_last_10_years(self):
         """Calculate year-wise MDD details for last 10 calendar years"""
         latest_year = self.nav_data[-1]['date'].year
@@ -256,6 +300,33 @@ class NavMetrics:
             }
 
         return results
+    def _drawdown_frequency(self):
+        """Count years crossing drawdown thresholds using yearly MDD data"""
+        yearly_mdd = self._yearly_mdd_last_10_years()
+
+        thresholds = {
+            "beyond_5_percent": 5,
+            "beyond_10_percent": 10,
+            "beyond_20_percent": 20,
+            "beyond_30_percent": 30,
+            "beyond_40_percent": 40,
+        }
+
+        frequency = {
+            key: {"count": 0, "years": []}
+            for key in thresholds
+        }
+
+        for year, details in yearly_mdd.items():
+            dd_abs = abs(details.get("max_drawdown_percent", 0.0))
+            for key, threshold in thresholds.items():
+                if dd_abs >= threshold:
+                    frequency[key]["years"].append(year)
+
+        for key in frequency:
+            frequency[key]["count"] = len(frequency[key]["years"])
+
+        return frequency
     def _annualized_volatility(self, start_date):
         """Calculate annualized volatility (%) from daily NAV returns"""
         filtered = [e for e in self.nav_data if e['date'] >= start_date]
@@ -341,6 +412,58 @@ class NavMetrics:
     def _year_on_year_returns(self):
         """Calculate calendar year returns percentage"""
         return {str(year): round(ret, 2) for year, ret in self._calendar_year_return_tuples()}
+    def _monthly_return_heatmap(self):
+        """Calculate monthly return matrix as year -> month -> return%"""
+        month_buckets = {}
+        for entry in self.nav_data:
+            key = (entry["date"].year, entry["date"].month)
+            if key not in month_buckets:
+                month_buckets[key] = {"start": entry["nav"], "end": entry["nav"]}
+            else:
+                month_buckets[key]["end"] = entry["nav"]
+
+        heatmap = {}
+        for (year, month), vals in sorted(month_buckets.items()):
+            start_nav = vals["start"]
+            end_nav = vals["end"]
+            ret = 0.0 if start_nav == 0 else round(((end_nav - start_nav) / start_nav) * 100, 2)
+            year_key = str(year)
+            month_key = f"{month:02d}"
+            if year_key not in heatmap:
+                heatmap[year_key] = {}
+            heatmap[year_key][month_key] = ret
+
+        return heatmap
+    def _return_distribution(self):
+        """Bucket calendar year returns into readability bands"""
+        year_returns = self._year_on_year_returns()
+
+        buckets = {
+            "above_50_percent": {"count": 0, "years": []},
+            "30_to_50_percent": {"count": 0, "years": []},
+            "10_to_30_percent": {"count": 0, "years": []},
+            "0_to_10_percent": {"count": 0, "years": []},
+            "negative": {"count": 0, "years": []},
+        }
+
+        for year, ret in year_returns.items():
+            if ret > 50:
+                key = "above_50_percent"
+            elif ret >= 30:
+                key = "30_to_50_percent"
+            elif ret >= 10:
+                key = "10_to_30_percent"
+            elif ret >= 0:
+                key = "0_to_10_percent"
+            else:
+                key = "negative"
+
+            buckets[key]["years"].append(year)
+
+        for key in buckets:
+            buckets[key]["count"] = len(buckets[key]["years"])
+
+        return buckets
     def _sortino_ratio(self, start_date, risk_free_rate_annual=0.0):
         """Calculate annualized Sortino ratio from daily NAV returns"""
         filtered = [e for e in self.nav_data if e['date'] >= start_date]
@@ -462,6 +585,38 @@ class NavMetrics:
             return 0.0
 
         return round(cagr_percent / denominator, 4)
+    def _pain_index(self, start_date):
+        """Calculate Pain Index as average drawdown (%) over the period"""
+        filtered = [e for e in self.nav_data if e["date"] >= start_date]
+        if len(filtered) < 2:
+            return 0.0
+
+        peak_nav = filtered[0]["nav"]
+        drawdowns = []
+        for entry in filtered:
+            nav = entry["nav"]
+            if nav > peak_nav:
+                peak_nav = nav
+            dd_pct = 0.0 if peak_nav == 0 else ((peak_nav - nav) / peak_nav) * 100
+            drawdowns.append(dd_pct)
+
+        return round(sum(drawdowns) / len(drawdowns), 4)
+    def _ulcer_index(self, start_date):
+        """Calculate Ulcer Index as RMS drawdown (%) over the period"""
+        filtered = [e for e in self.nav_data if e["date"] >= start_date]
+        if len(filtered) < 2:
+            return 0.0
+
+        peak_nav = filtered[0]["nav"]
+        squared_drawdowns = []
+        for entry in filtered:
+            nav = entry["nav"]
+            if nav > peak_nav:
+                peak_nav = nav
+            dd_pct = 0.0 if peak_nav == 0 else ((peak_nav - nav) / peak_nav) * 100
+            squared_drawdowns.append(dd_pct ** 2)
+
+        return round((sum(squared_drawdowns) / len(squared_drawdowns)) ** 0.5, 4)
 
     def _xnpv(self, rate, cashflows):
         """Calculate NPV for irregular cashflows"""
@@ -588,6 +743,8 @@ class NavMetrics:
                 "positive_years_percent": 0.0,
                 "positive_months_percent": 0.0,
                 "positive_days_percent": 0.0,
+                "max_consecutive_positive_months": None,
+                "max_consecutive_negative_months": None,
                 "best_year": {"year": None, "return": 0.0},
                 "worst_year": {"year": None, "return": 0.0},
                 "best_month": {"month": None, "return": 0.0},
@@ -623,6 +780,23 @@ class NavMetrics:
                 ret = ((curr_nav - prev_nav) / prev_nav) * 100
                 day_returns.append((self.nav_data[i]['date'].isoformat(), ret))
 
+        max_pos_streak = 0
+        max_neg_streak = 0
+        curr_pos_streak = 0
+        curr_neg_streak = 0
+        for _, r in month_returns:
+            if r > 0:
+                curr_pos_streak += 1
+                curr_neg_streak = 0
+            elif r < 0:
+                curr_neg_streak += 1
+                curr_pos_streak = 0
+            else:
+                curr_pos_streak = 0
+                curr_neg_streak = 0
+            max_pos_streak = max(max_pos_streak, curr_pos_streak)
+            max_neg_streak = max(max_neg_streak, curr_neg_streak)
+
         def pct_positive(items):
             if not items:
                 return 0.0
@@ -644,6 +818,8 @@ class NavMetrics:
             "positive_years_percent": pct_positive(year_returns),
             "positive_months_percent": pct_positive(month_returns),
             "positive_days_percent": pct_positive(day_returns),
+            "max_consecutive_positive_months": max_pos_streak if month_returns else None,
+            "max_consecutive_negative_months": max_neg_streak if month_returns else None,
             "best_year": best_item(year_returns, 'year'),
             "worst_year": worst_item(year_returns, 'year'),
             "best_month": best_item(month_returns, 'month'),
@@ -749,6 +925,8 @@ class NavMetrics:
             downside_deviation_values = {}
             skewness_values = {}
             kurtosis_values = {}
+            pain_index_values = {}
+            ulcer_index_values = {}
             sip_returns = {}
 
             for name, days in periods.items():
@@ -765,6 +943,8 @@ class NavMetrics:
                 downside_deviation_values[name] = self._downside_deviation_percent(past_date)
                 skewness_values[name] = self._skewness(past_date)
                 kurtosis_values[name] = self._kurtosis(past_date)
+                pain_index_values[name] = self._pain_index(past_date)
+                ulcer_index_values[name] = self._ulcer_index(past_date)
                 sip_returns[name] = self._sip_xirr(past_date, sip_amount=1000.0)
 
             launch_nav = self.nav_data[0]['nav']
@@ -782,6 +962,8 @@ class NavMetrics:
             downside_deviation_values["max"] = self._downside_deviation_percent(launch_date)
             skewness_values["max"] = self._skewness(launch_date)
             kurtosis_values["max"] = self._kurtosis(launch_date)
+            pain_index_values["max"] = self._pain_index(launch_date)
+            ulcer_index_values["max"] = self._ulcer_index(launch_date)
             sip_returns["max"] = self._sip_xirr(launch_date, sip_amount=1000.0)
 
             result = {
@@ -789,6 +971,8 @@ class NavMetrics:
                     "absolute_returns_percent": absolute_returns,
                     "cagr_percent": cagr_returns,
                     "year_on_year_percent": self._year_on_year_returns(),
+                    "monthly_return_heatmap": self._monthly_return_heatmap(),
+                    "return_distribution": self._return_distribution(),
                     "sip_returns": sip_returns,
                     "rolling_cagr_percent": self._rolling_cagr_all_periods(),
                 },
@@ -799,13 +983,17 @@ class NavMetrics:
                     "kurtosis": kurtosis_values,
                 },
                 "drawdown": {
+                    "current_drawdown": self._current_drawdown_details(),
                     "mdd_duration_details": mdd_duration_details,
                     "yearly_mdd_last_10_years": self._yearly_mdd_last_10_years(),
+                    "drawdown_frequency": self._drawdown_frequency(),
                 },
                 "risk_adjusted_returns": {
                     "sharpe_ratio": sharpe_ratios,
                     "sortino_ratio": sortino_ratios,
                     "calmar_ratio": calmar_ratios,
+                    "pain_index": pain_index_values,
+                    "ulcer_index": ulcer_index_values,
                 },
                 "consistency": {
                     "consistency": self._consistency_metrics(),

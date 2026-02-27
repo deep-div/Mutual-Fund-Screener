@@ -46,6 +46,8 @@ class ConsistencyMetrics(BaseModel):
     positive_years_percent: float
     positive_months_percent: float
     positive_days_percent: float
+    max_consecutive_positive_months: Optional[int]
+    max_consecutive_negative_months: Optional[int]
     best_year: YearConsistency
     worst_year: YearConsistency
     best_month: MonthConsistency
@@ -77,6 +79,8 @@ class ReturnsCategory(BaseModel):
     absolute_returns_percent: Dict[str, float]
     cagr_percent: Dict[str, float]
     year_on_year_percent: Dict[str, float]
+    monthly_return_heatmap: Dict[str, Dict[str, float]]
+    return_distribution: Dict[str, Dict[str, object]]
     sip_returns: Dict[str, SipMetrics]
     rolling_cagr_percent: Optional[Dict[str, RollingCagrPeriod]] = None
 
@@ -89,14 +93,18 @@ class RiskMetricsCategory(BaseModel):
 
 
 class DrawdownCategory(BaseModel):
+    current_drawdown: DrawdownDetails
     mdd_duration_details: Dict[str, DrawdownDetails]
     yearly_mdd_last_10_years: Dict[str, DrawdownDetails]
+    drawdown_frequency: Dict[str, Dict[str, object]]
 
 
 class RiskAdjustedReturnsCategory(BaseModel):
     sharpe_ratio: Dict[str, float]
     sortino_ratio: Dict[str, float]
     calmar_ratio: Dict[str, float]
+    pain_index: Dict[str, float]
+    ulcer_index: Dict[str, float]
 
 
 class ConsistencyCategory(BaseModel):
