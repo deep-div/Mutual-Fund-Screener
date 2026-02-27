@@ -2,13 +2,14 @@ import requests
 import asyncio
 import aiohttp
 import nest_asyncio
+import re
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 from app.ingestion.schemas import (
     InstrumentType,
     MutualFundNavResponse,
     SchemeMeta,
-    AssetClass,
+    SchemeClass,
     OptionType,
     PlanType,
 )
@@ -97,6 +98,7 @@ class MFAPIFetcher:
         scheme_code = meta_raw.get("scheme_code") or meta_raw.get("schemeCode")
 
         name_lower = (scheme_name or "").lower()
+        scheme_sub_name = self._extract_scheme_sub_name(scheme_name)
 
         # Compute launch_date, current_date, total_active_days from NAV history
         nav_data = raw.get("data", [])
@@ -115,7 +117,7 @@ class MFAPIFetcher:
         nav_record_count = len(nav_data)
 
         # Asset Class Mapping
-        asset_class = AssetClass.OTHER
+        scheme_class = SchemeClass.OTHER.value
         scheme_sub_category = scheme_category
 
         if " - " in scheme_category:
@@ -123,13 +125,13 @@ class MFAPIFetcher:
             scheme_sub_category = right.strip()
             left = left.strip().lower()
             if "equity" in left:
-                asset_class = AssetClass.EQUITY.value
+                scheme_class = SchemeClass.EQUITY.value
             elif "debt" in left:
-                asset_class = AssetClass.DEBT.value
+                scheme_class = SchemeClass.DEBT.value
             elif "hybrid" in left:
-                asset_class = AssetClass.HYBRID.value
+                scheme_class = SchemeClass.HYBRID.value
             else:
-                asset_class = AssetClass.OTHER.value
+                scheme_class = SchemeClass.OTHER.value
 
         # Option Type
         if "growth" in name_lower:
@@ -139,7 +141,7 @@ class MFAPIFetcher:
         elif "bonus" in name_lower:
             option_type = OptionType.BONUS.value
         else:
-            option_type = None
+            option_type = OptionType.OTHER.value
 
         # Plan Type
         if "direct" in name_lower:
@@ -147,16 +149,17 @@ class MFAPIFetcher:
         elif "regular" in name_lower:
             plan_type = PlanType.REGULAR.value
         else:
-            plan_type = None
+            plan_type = PlanType.OTHER.value
 
         return SchemeMeta(
             instrument_type=InstrumentType.MUTUAL_FUND.value,
             scheme_code=scheme_code,
             fund_house=fund_house,
-            asset_class=asset_class,
+            scheme_class=scheme_class,
             scheme_category=scheme_category,
             scheme_sub_category=scheme_sub_category,
             scheme_name=scheme_name,
+            scheme_sub_name=scheme_sub_name,
             launch_date=launch_date,
             current_date=current_date,
             total_active_days=total_active_days,
@@ -167,6 +170,16 @@ class MFAPIFetcher:
             isin_growth=meta_raw.get("isin_growth") or meta_raw.get("isinGrowth"),
             isin_div_reinvestment=meta_raw.get("isin_div_reinvestment") or meta_raw.get("isinDivReinvestment"),
         )
+
+    @staticmethod
+    def _extract_scheme_sub_name(scheme_name: str) -> str:
+        """Return text before first hyphen as base scheme name."""
+        if not scheme_name:
+            return ""
+        cleaned = scheme_name.strip()
+        if "-" in cleaned:
+            return cleaned.split("-", 1)[0].strip()
+        return cleaned
     
     async def fetch_scheme(self, session, semaphore, scheme_code):
         """Fetch NAV data, enrich meta from raw, then validate full response."""
@@ -181,7 +194,6 @@ class MFAPIFetcher:
 
                     try:
                         # STEP 1: Enrich meta directly from raw
-                        
                         enriched_meta = self._build_scheme_meta(raw)
 
                         # STEP 2: Inject enriched meta

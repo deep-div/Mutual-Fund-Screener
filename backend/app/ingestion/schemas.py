@@ -11,7 +11,7 @@ class InstrumentType(str, Enum):
     ETF = "ETF"
     INDEX = "Index"
 
-class AssetClass(str, Enum):
+class SchemeClass(str, Enum):
     """Asset class enum."""
     EQUITY = "Equity"
     DEBT = "Debt"
@@ -23,14 +23,14 @@ class PlanType(str, Enum):
     """Plan type enum."""
     DIRECT = "Direct"
     REGULAR = "Regular"
-
+    OTHER = "Other"
 
 class OptionType(str, Enum):
     """Option type enum."""
     GROWTH = "Growth"
     IDCW = "IDCW"
     BONUS = "Bonus"
-
+    OTHER = "Other"
 
 class SchemeType(str, Enum):
     """Scheme structure type enum."""
@@ -44,15 +44,16 @@ class SchemeMeta(BaseModel):
     scheme_code: int
     fund_house: str
     scheme_name: str
+    scheme_sub_name: str
+    option_type: OptionType
+    plan_type: PlanType
     scheme_category: str
-    asset_class: AssetClass
+    scheme_class: SchemeClass
     scheme_sub_category: str
     launch_date: date
     current_date: date
     total_active_days: int
     nav_record_count: int
-    option_type: Optional[OptionType] = None
-    plan_type: Optional[PlanType] = None
     scheme_type: Optional[SchemeType] = None
     isin_growth: Optional[str] = None
     isin_div_reinvestment: Optional[str] = None
