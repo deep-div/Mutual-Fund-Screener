@@ -1,49 +1,101 @@
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import List, Optional
-from datetime import datetime, date
-from decimal import Decimal
+from typing import Dict, Optional, List
+from pydantic import BaseModel
 
 
-class SchemeMeta(BaseModel):
-    """Metadata describing a mutual fund scheme."""
-    model_config = ConfigDict(extra="allow")
-
-    scheme_code: int
-    fund_house: str
-    scheme_name: str
-    scheme_type: Optional[str] = None
-    scheme_category: Optional[str] = None
-    total_nav_records: Optional[int] = None
-    isin_growth: Optional[str] = None
-    isin_div_reinvestment: Optional[str] = None
-
-class NavPoint(BaseModel):
-    """Single NAV datapoint for a given date."""
-    model_config = ConfigDict(extra="allow")
-
-    date: date
-    nav: Decimal
-
-    @field_validator("date", mode="before")
-    @classmethod
-    def parse_date(cls, v):
-        """Parse DD-MM-YYYY formatted date string."""
-        if isinstance(v, str):
-            return datetime.strptime(v, "%d-%m-%Y").date()
-        return v
-
-    @field_validator("nav", mode="before")
-    @classmethod
-    def parse_nav(cls, v):
-        """Convert NAV string to Decimal."""
-        if isinstance(v, str):
-            return Decimal(v)
-        return v
+class DrawdownDetails(BaseModel):
+    max_drawdown_percent: float
+    peak_date: Optional[str]
+    peak_nav: Optional[float]
+    trough_date: Optional[str]
+    trough_nav: Optional[float]
+    recovery_date: Optional[str]
+    recovery_nav: Optional[float]
+    drawdown_duration_days: int
+    drawdown_duration_navs: int
+    recovery_duration_days: Optional[int]
+    recovery_duration_navs: Optional[int]
 
 
-class MutualFundNavResponse(BaseModel):
-    """Complete mutual fund NAV ingestion response."""
-    model_config = ConfigDict(extra="allow")
+class SipMetrics(BaseModel):
+    monthly_amount: int
+    total_invested: float
+    current_value: float
+    absolute_return_percent: float
+    xirr_percent: float
 
-    meta: SchemeMeta
-    data: List[NavPoint]
+
+class YearConsistency(BaseModel):
+    year: Optional[int]
+    return_: float
+
+    class Config:
+        fields = {"return_": "return"}
+
+
+class MonthConsistency(BaseModel):
+    month: Optional[str]
+    return_: float
+
+    class Config:
+        fields = {"return_": "return"}
+
+
+class DayConsistency(BaseModel):
+    date: Optional[str]
+    return_: float
+
+    class Config:
+        fields = {"return_": "return"}
+
+
+class ConsistencyMetrics(BaseModel):
+    positive_years_percent: float
+    positive_months_percent: float
+    positive_days_percent: float
+    best_year: YearConsistency
+    worst_year: YearConsistency
+    best_month: MonthConsistency
+    worst_month: MonthConsistency
+    best_day: DayConsistency
+    worst_day: DayConsistency
+
+
+class RollingSummary(BaseModel):
+    average: float
+    median: float
+    maximum: float
+    minimum: float
+    positive_percent: float
+    observations: int
+
+
+class RollingPoint(BaseModel):
+    date: str
+    cagr_percent: float
+
+
+class RollingCagrPeriod(BaseModel):
+    summary: RollingSummary
+    points: List[RollingPoint]
+
+
+class NavMetricsOutput(BaseModel):
+    absolute_returns_percent: Dict[str, float]
+    cagr_percent: Dict[str, float]
+
+    mdd_duration_details: Dict[str, DrawdownDetails]
+    yearly_mdd_last_10_years: Dict[str, DrawdownDetails]
+    year_on_year_percent: Dict[str, float]
+
+    volatility_annualized_percent: Dict[str, float]
+    sharpe_ratio: Dict[str, float]
+    calmar_ratio: Dict[str, float]
+    sortino_ratio: Dict[str, float]
+    downside_deviation_percent: Dict[str, float]
+    skewness: Dict[str, float]
+    kurtosis: Dict[str, float]
+
+    consistency: ConsistencyMetrics
+    sip_returns: Dict[str, SipMetrics]
+
+    rolling_cagr_percent: Optional[Dict[str, RollingCagrPeriod]] = None
