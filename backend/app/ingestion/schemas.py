@@ -101,6 +101,7 @@ class SchemeMeta(BaseModel):
     scheme_sub_category: SchemeSubCategory | str
     launch_date: date
     current_date: date
+    current_nav: float
     total_active_days: int
     nav_record_count: int
     scheme_type: Optional[SchemeType] = None

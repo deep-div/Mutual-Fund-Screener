@@ -114,6 +114,7 @@ class MFAPIFetcher:
 
         launch_date = datetime.strptime(sorted_nav[0]["date"], "%d-%m-%Y")
         current_date = datetime.strptime(sorted_nav[-1]["date"], "%d-%m-%Y")
+        current_nav = float(sorted_nav[-1]["nav"])
         total_active_days = (current_date - launch_date).days
         nav_record_count = len(nav_data)
 
@@ -192,6 +193,7 @@ class MFAPIFetcher:
             scheme_sub_name=scheme_sub_name,
             launch_date=launch_date,
             current_date=current_date,
+            current_nav=current_nav,
             total_active_days=total_active_days,
             nav_record_count=nav_record_count,
             option_type=option_type,
