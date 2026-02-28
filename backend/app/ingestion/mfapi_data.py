@@ -22,7 +22,7 @@ nest_asyncio.apply()
 class MFAPIFetcher:
     """Fetch filtered latest schemes and fetch scheme-wise NAV data asynchronously."""
 
-    def __init__(self, base_url: str = "https://api.mfapi.in/mf", max_concurrent: int = 50):
+    def __init__(self, base_url: str = "https://api.mfapi.in/mf", max_concurrent: int = 5):
         """Initialize API base url and concurrency control."""
         self.base_url = base_url
         self.max_concurrent = max_concurrent
@@ -137,7 +137,7 @@ class MFAPIFetcher:
                 if enum_value_lower in api_value_lower:
                     matched_enum = enum_member
                     break
-
+            
             if matched_enum:
                 scheme_sub_category = matched_enum
             else:
@@ -154,6 +154,14 @@ class MFAPIFetcher:
                 scheme_class = SchemeClass.HYBRID
             else:
                 scheme_class = SchemeClass.OTHER
+
+        # Fix: If class is OTHER but sub-category is INDEX, treat as EQUITY
+        if (
+            scheme_class == SchemeClass.OTHER
+            and isinstance(scheme_sub_category, SchemeSubCategory)
+            and scheme_sub_category == SchemeSubCategory.INDEX
+        ):
+            scheme_class = SchemeClass.EQUITY
 
         # Option Type
         if "growth" in name_lower:
@@ -203,7 +211,7 @@ class MFAPIFetcher:
         cleaned = re.sub(r"\(.*?\)", "", cleaned).strip()
         # remove plan/option related words
         cleaned = re.sub(
-            r"\b(direct|regular|plan|growth|idcw|dividend|payout|reinvestment|option)\b",
+            r"\b(direct|regular|plan|growth|option)\b",
             "",
             cleaned,
             flags=re.IGNORECASE,
@@ -214,44 +222,68 @@ class MFAPIFetcher:
         cleaned = cleaned.replace("|", " ")
         # remove commas
         cleaned = cleaned.replace(",", " ")
-        # remove trailing dots
-        cleaned = re.sub(r"\.+$", "", cleaned)
         # remove consecutive duplicate 'fund fund'
         cleaned = re.sub(r"\b(fund)\s+\1\b", r"\1", cleaned, flags=re.IGNORECASE)
         # normalize spaces
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        # hardcoded corrections
+        if "uti mmf" in cleaned.lower():
+            cleaned = re.sub(r"\buti mmf\b", "Uti Money Market Fund", cleaned, flags=re.IGNORECASE)
+        if "motilal oswal large cap" in cleaned.lower():
+            cleaned = re.sub(
+                r"\b(motilal oswal large cap)(?!\s+fund)\b",
+                r"\1 Fund",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+        # remove trailing dots
+        cleaned = re.sub(r"\.+$", "", cleaned)
         return cleaned.title()
     
     async def fetch_scheme(self, session, semaphore, scheme_code):
         """Fetch NAV data, enrich meta from raw, then validate full response."""
         async with semaphore:
-            try:
-                async with session.get(f"{self.base_url}/{scheme_code}", timeout=10) as response:
-                    if response.status != 200:
-                        logger.warning(f"Non-200 response for scheme_code={scheme_code}")
-                        return None
+            max_retries = 4
+            for attempt in range(1, max_retries + 1):
+                try:
+                    async with session.get(f"{self.base_url}/{scheme_code}", timeout=60) as response:
+                        if response.status != 200:
+                            logger.warning(
+                                f"Non-200 response for scheme_code={scheme_code} "
+                                f"on attempt {attempt}/{max_retries} (status={response.status})"
+                            )
+                            if attempt < max_retries:
+                                await asyncio.sleep(min(0.5 * attempt, 3))
+                                continue
+                            return None
 
-                    raw = await response.json()
+                        raw = await response.json()
 
-                    try:
-                        # STEP 1: Enrich meta directly from raw
-                        enriched_meta = self._build_scheme_meta(raw)
+                        try:
+                            # STEP 1: Enrich meta directly from raw
+                            enriched_meta = self._build_scheme_meta(raw)
 
-                        # STEP 2: Inject enriched meta
-                        raw["meta"] = enriched_meta.model_dump(mode="json")
+                            # STEP 2: Inject enriched meta
+                            raw["meta"] = enriched_meta.model_dump(mode="json")
 
-                        # STEP 3: Final validation (only once)
-                        validated = MutualFundNavResponse.model_validate(raw)
+                            # STEP 3: Final validation (only once)
+                            validated = MutualFundNavResponse.model_validate(raw)
 
-                        return validated.model_dump(mode="json")
+                            return validated.model_dump(mode="json")
 
-                    except Exception as e:
-                        logger.warning(f"Validation failed for scheme_code={scheme_code}: {e}")
-                        return None
+                        except Exception as e:
+                            logger.warning(f"Validation failed for scheme_code={scheme_code}: {e}")
+                            return None
 
-            except Exception as e:
-                logger.error(f"Error fetching scheme_code={scheme_code}: {e}")
-                return None
+                except Exception as e:
+                    logger.warning(
+                        f"Error fetching scheme_code={scheme_code} on attempt "
+                        f"{attempt}/{max_retries} | type={type(e).__name__} | repr={repr(e)}"
+                    )
+                    if attempt < max_retries:
+                        await asyncio.sleep(min(0.5 * attempt, 3))
+                        continue
+                    return None
 
     async def fetch_schemes_from_list(self, schemes_list):
         """Extract scheme_code from dict list and fetch NAV data."""
@@ -299,7 +331,7 @@ class MFAPIFetcher:
 
 # if __name__ == "__main__":
 #     try:
-#         fetcher = MFAPIFetcher(max_concurrent=50)
+#         fetcher = MFAPIFetcher()
 #         days = 7
 #         schemes_list = fetcher.fetch_recent_active_schemes(days)
 #         data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list[:10]))

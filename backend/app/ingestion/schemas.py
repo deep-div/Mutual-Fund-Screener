@@ -42,7 +42,7 @@ class SchemeSubCategory(str, Enum):
     AGGRESSIVE_HYBRID = "Aggressive Hybrid Fund"
     BALANCED_HYBRID = "Balanced Hybrid Fund"
     CONSERVATIVE_HYBRID = "Conservative Hybrid Fund"
-    DYNAMIC_ASSET_ALLOCATION = "Dynamic Asset Allocation or Balanced Advantage"
+    DYNAMIC_ASSET_ALLOCATION = "Balanced Advantage"
     EQUITY_SAVINGS = "Equity Savings"
     MULTI_ASSET_ALLOCATION = "Multi Asset Allocation"
     ARBITRAGE = "Arbitrage Fund"
