@@ -101,7 +101,7 @@ class MFAPIFetcher:
         name_lower = (scheme_name or "").lower()
         scheme_sub_name = self._extract_scheme_sub_name(scheme_name)
 
-        # Compute launch_date, current_date, total_active_days from NAV history
+        # Compute launch_date/current_date and age fields from NAV history
         nav_data = raw.get("data", [])
 
         if not nav_data:
@@ -116,6 +116,7 @@ class MFAPIFetcher:
         current_date = datetime.strptime(sorted_nav[-1]["date"], "%d-%m-%Y")
         current_nav = float(sorted_nav[-1]["nav"])
         total_active_days = (current_date - launch_date).days
+        time_since_inception_years = round(total_active_days / 365.25, 2)
         nav_record_count = len(nav_data)
 
         # Asset Class Mapping
@@ -194,6 +195,7 @@ class MFAPIFetcher:
             launch_date=launch_date,
             current_date=current_date,
             current_nav=current_nav,
+            time_since_inception_years=time_since_inception_years,
             total_active_days=total_active_days,
             nav_record_count=nav_record_count,
             option_type=option_type,
