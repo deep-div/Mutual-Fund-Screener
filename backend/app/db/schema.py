@@ -33,7 +33,6 @@ class SchemeMetaORM(Base):
     nav_record_count = Column(Integer)
     isin_growth = Column(String)
     isin_div_reinvestment = Column(String)
-    batch_id = Column(Integer, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
@@ -108,7 +107,6 @@ class SchemeAnalyticsORM(Base):
         index=True,
         nullable=False
     )
-    batch_id = Column(Integer, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
     full_data = Column(JSONB)
