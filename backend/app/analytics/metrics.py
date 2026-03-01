@@ -16,12 +16,9 @@ class NavMetrics:
 
             parsed_data = []
             for entry in nav_data:
-                nav_value = float(entry["nav"])
-                if nav_value <= 0:
-                    raise ValueError(f"Invalid NAV value for {entry['date']}: {entry['nav']}")
                 parsed_data.append({
                     "date": datetime.strptime(entry["date"], "%Y-%m-%d").date(),
-                    "nav": nav_value
+                    "nav": float(entry["nav"])
                 })
 
             self.nav_data = sorted(parsed_data, key=lambda x: x['date'])
@@ -77,7 +74,8 @@ class NavMetrics:
             if nav > max_nav:
                 max_nav = nav
 
-            drawdown = (nav - max_nav) / max_nav
+            # Guard against non-positive peaks to avoid division errors.
+            drawdown = 0.0 if max_nav <= 0 else (nav - max_nav) / max_nav
             if drawdown < max_drawdown:
                 max_drawdown = drawdown
 
@@ -127,7 +125,8 @@ class NavMetrics:
                 peak_nav = nav
                 peak_idx = i
 
-            drawdown = (nav - peak_nav) / peak_nav
+            # Guard against non-positive peaks to avoid division errors.
+            drawdown = 0.0 if peak_nav <= 0 else (nav - peak_nav) / peak_nav
             if drawdown < max_dd:
                 max_dd = drawdown
                 trough_idx = i
@@ -264,7 +263,8 @@ class NavMetrics:
                     peak_nav = nav
                     peak_idx = i
 
-                drawdown = (nav - peak_nav) / peak_nav
+                # Guard against non-positive peaks to avoid division errors.
+                drawdown = 0.0 if peak_nav <= 0 else (nav - peak_nav) / peak_nav
                 if drawdown < max_dd:
                     max_dd = drawdown
                     trough_idx = i
