@@ -14,6 +14,9 @@ class SchemeMetaORM(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     scheme_code = Column(BigInteger, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
     # Meta Information
     instrument_type = Column(String)
     fund_house = Column(String)
@@ -33,9 +36,7 @@ class SchemeMetaORM(Base):
     nav_record_count = Column(Integer)
     isin_growth = Column(String)
     isin_div_reinvestment = Column(String)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
-
+   
     # Absolute Returns (Short-Term)
     abs_1w = Column(Float)
     abs_1m = Column(Float)
