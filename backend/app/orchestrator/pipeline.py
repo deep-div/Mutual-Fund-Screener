@@ -17,7 +17,7 @@ def main():
         schemes_list = fetcher.fetch_recent_active_schemes(days)
         logger.info(f"Fetched {len(schemes_list)} schemes")
 
-        raw_data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list[:2]))
+        raw_data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list[:20]))
 
         final_response = []
 
@@ -32,7 +32,8 @@ def main():
                 "meta": meta,
                 "metrics": metrics_output
             })
-
+        failed_count = len(raw_data) - len(final_response)
+        logger.info(f"NAV Metrics completed | Success: {len(final_response)} | Failed/Skipped: {failed_count}")
         logger.info("Pipeline execution completed successfully")
         return final_response
 
@@ -43,4 +44,3 @@ def main():
 
 # if __name__ == "__main__":
 #     response = main()
-#     print(json.dumps(response, indent=2))

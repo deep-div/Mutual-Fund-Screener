@@ -25,7 +25,6 @@ class NavMetrics:
                 })
 
             self.nav_data = sorted(parsed_data, key=lambda x: x['date'])
-            logger.info("NavMetrics initialized successfully")
 
         except Exception as e:
             logger.error(f"Initialization failed: {str(e)}")
@@ -1034,7 +1033,6 @@ class NavMetrics:
 
             try:
                 validated_result = NavMetricsOutput(**result)
-                logger.info("NAV metrics validated successfully against output schema")
                 return json.loads(validated_result.model_dump_json(by_alias=True, exclude_none=True))
             except Exception as schema_error:
                 logger.error(f"Output schema validation failed: {str(schema_error)}")
