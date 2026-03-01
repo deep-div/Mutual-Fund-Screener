@@ -22,21 +22,28 @@ class NavMetrics:
                 })
 
             self.nav_data = sorted(parsed_data, key=lambda x: x['date'])
+            self._dates = [e["date"] for e in self.nav_data]
 
         except Exception as e:
             logger.error(f"Initialization failed: {str(e)}")
             raise
 
     def _get_nav_for_period(self, days):
-        """Get NAV for first available date on/after target lookback date"""
+        """Get NAV on/before target lookback date if full lookback history exists."""
         latest_date = self.nav_data[-1]['date']
         target_date = latest_date - timedelta(days=days)
+        earliest_date = self.nav_data[0]["date"]
 
-        for entry in self.nav_data:
-            if entry['date'] >= target_date:
-                return entry['nav'], entry['date']
+        # No fabricated history: period is unavailable if launch is after target.
+        if earliest_date > target_date:
+            return None, None
 
-        return self.nav_data[0]['nav'], self.nav_data[0]['date']
+        idx = bisect.bisect_right(self._dates, target_date) - 1
+        if idx < 0:
+            return None, None
+
+        entry = self.nav_data[idx]
+        return entry['nav'], entry['date']
 
     def _absolute_return(self, past_nav):
         """Calculate absolute return percentage"""
@@ -942,6 +949,23 @@ class NavMetrics:
 
             for name, days in periods.items():
                 past_nav, past_date = self._get_nav_for_period(days)
+                if past_nav is None or past_date is None:
+                    absolute_returns[name] = None
+                    cagr_returns[name] = None
+                    mdd_returns[name] = None
+                    mdd_duration_details[name] = None
+                    annualized_volatility[name] = None
+                    sharpe_ratios[name] = None
+                    calmar_ratios[name] = None
+                    sortino_ratios[name] = None
+                    downside_deviation_values[name] = None
+                    skewness_values[name] = None
+                    kurtosis_values[name] = None
+                    pain_index_values[name] = None
+                    ulcer_index_values[name] = None
+                    sip_returns[name] = None
+                    continue
+
                 absolute_returns[name] = self._absolute_return(past_nav)
                 cagr_returns[name] = self._cagr(past_nav, past_date)
                 mdd_info = self._mdd_duration_details(past_date)
@@ -976,7 +1000,7 @@ class NavMetrics:
             absolute_returns = {}
             for name, days in ordered_absolute_periods:
                 past_nav, _ = self._get_nav_for_period(days)
-                absolute_returns[name] = self._absolute_return(past_nav)
+                absolute_returns[name] = self._absolute_return(past_nav) if past_nav is not None else None
 
             launch_nav = self.nav_data[0]['nav']
             launch_date = self.nav_data[0]['date']
@@ -1033,7 +1057,7 @@ class NavMetrics:
 
             try:
                 validated_result = NavMetricsOutput(**result)
-                return json.loads(validated_result.model_dump_json(by_alias=True, exclude_none=True))
+                return json.loads(validated_result.model_dump_json(by_alias=True))
             except Exception as schema_error:
                 logger.error(f"Output schema validation failed: {str(schema_error)}")
                 raise

@@ -76,35 +76,35 @@ class RollingCagrPeriod(BaseModel):
 
 
 class ReturnsCategory(BaseModel):
-    absolute_returns_percent: Dict[str, float]
-    cagr_percent: Dict[str, float]
+    absolute_returns_percent: Dict[str, Optional[float]]
+    cagr_percent: Dict[str, Optional[float]]
     year_on_year_percent: Dict[str, float]
     monthly_return_heatmap: Dict[str, Dict[str, float]]
     return_distribution: Dict[str, Dict[str, object]]
-    sip_returns: Dict[str, SipMetrics]
+    sip_returns: Dict[str, Optional[SipMetrics]]
     rolling_cagr_percent: Optional[Dict[str, RollingCagrPeriod]] = None
 
 
 class RiskMetricsCategory(BaseModel):
-    volatility_annualized_percent: Dict[str, float]
-    downside_deviation_percent: Dict[str, float]
-    skewness: Dict[str, float]
-    kurtosis: Dict[str, float]
+    volatility_annualized_percent: Dict[str, Optional[float]]
+    downside_deviation_percent: Dict[str, Optional[float]]
+    skewness: Dict[str, Optional[float]]
+    kurtosis: Dict[str, Optional[float]]
 
 
 class DrawdownCategory(BaseModel):
     current_drawdown: DrawdownDetails
-    mdd_duration_details: Dict[str, DrawdownDetails]
+    mdd_duration_details: Dict[str, Optional[DrawdownDetails]]
     yearly_mdd_last_10_years: Dict[str, DrawdownDetails]
     drawdown_frequency: Dict[str, Dict[str, object]]
 
 
 class RiskAdjustedReturnsCategory(BaseModel):
-    sharpe_ratio: Dict[str, float]
-    sortino_ratio: Dict[str, float]
-    calmar_ratio: Dict[str, float]
-    pain_index: Dict[str, float]
-    ulcer_index: Dict[str, float]
+    sharpe_ratio: Dict[str, Optional[float]]
+    sortino_ratio: Dict[str, Optional[float]]
+    calmar_ratio: Dict[str, Optional[float]]
+    pain_index: Dict[str, Optional[float]]
+    ulcer_index: Dict[str, Optional[float]]
 
 
 class ConsistencyCategory(BaseModel):
