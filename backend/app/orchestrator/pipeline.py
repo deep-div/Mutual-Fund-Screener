@@ -1,46 +1,20 @@
-from app.ingestion.mfapi_data import MFAPIFetcher
-from app.analytics.metrics import NavMetrics
-import asyncio
-import nest_asyncio
-nest_asyncio.apply()
+from app.ingestion.mfapi_data import run_ingestion
+from app.analytics.metrics import run_analytics
+from app.db.write import run_store_in_db
 from app.shared.logger import logger
-import json
 
-def main():
-    """Run MF ingestion and analytics and return meta + metrics."""
+def run_pipeline():
+    """Execute full ingestion, analytics, and storage pipeline"""
     try:
-        logger.info("Starting mutual fund pipeline execution")
-
-        fetcher = MFAPIFetcher()
-
-        days = 7
-        schemes_list = fetcher.fetch_recent_active_schemes(days)
-        logger.info(f"Fetched {len(schemes_list)} schemes")
-
-        raw_data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list[:20]))
-
-        final_response = []
-
-        for scheme in raw_data:
-            meta = scheme.get("meta", {})
-            nav_data = scheme.get("data", [])
-
-            metrics = NavMetrics(nav_data)
-            metrics_output = metrics.get_all_metrics()
-
-            final_response.append({
-                "meta": meta,
-                "metrics": metrics_output
-            })
-        failed_count = len(raw_data) - len(final_response)
-        logger.info(f"NAV Metrics completed | Success: {len(final_response)} | Failed/Skipped: {failed_count}")
+        logger.info("Starting pipeline execution")
+        raw_data = run_ingestion()
+        metrics = run_analytics(raw_data)
+        run_store_in_db(metrics)
         logger.info("Pipeline execution completed successfully")
-        return final_response
-
     except Exception as e:
-        logger.exception(f"Fatal error in main execution: {e}")
-        return []
+        logger.error(f"Fatal error in pipeline execution: {e}")
+        raise
 
 
 # if __name__ == "__main__":
-#     response = main()
+#     run_pipeline()
