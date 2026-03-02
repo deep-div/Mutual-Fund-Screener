@@ -1068,7 +1068,32 @@ class NavMetrics:
         except Exception as e:
             logger.error(f"Metric calculation failed: {str(e)}")
             raise
+def run_analytics(raw_data):
+    """Run NAV analytics on raw scheme data and return structured response"""
+    final_response = []
+    failed_count = 0
 
+    for scheme in raw_data:
+        try:
+            meta = scheme.get("meta", {})
+            nav_data = scheme.get("data", [])
 
-# metrics = NavMetrics(data[5]['data'])
-# response_dict = metrics.get_all_metrics()
+            metrics = NavMetrics(nav_data)
+            metrics_output = metrics.get_all_metrics()
+
+            final_response.append({
+                "meta": meta,
+                "metrics": metrics_output
+            })
+
+        except Exception as e:
+            failed_count += 1
+            logger.error(f"NAV Metrics failed for scheme {scheme.get('meta', {}).get('scheme_code')} | Error: {str(e)}")
+            continue
+
+    logger.info(f"NAV Metrics completed | Success: {len(final_response)} | Failed/Skipped: {failed_count}")
+
+    return final_response
+
+# metrics = run_analytics(data)
+# print(json.dumps(metrics, indent=2))

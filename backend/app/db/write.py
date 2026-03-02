@@ -2,6 +2,7 @@ from sqlalchemy.dialects.postgresql import insert
 from app.db.schema import SchemeMetaORM, SchemeAnalyticsORM
 from app.db.session import get_session
 from sqlalchemy.sql import func
+from app.shared.logger import logger
 
 def safe_get(d, *keys):
     """Safely fetch nested dictionary values without KeyError"""
@@ -132,16 +133,29 @@ def bulk_upsert_analytics(session, data: list[dict]):
     session.execute(stmt)
 
 """Runs full mutual fund pipeline in batches"""
-def store_in_db(data: list[dict], batch_size: int = 500):
+def run_store_in_db(data: list[dict], batch_size: int = 500):
     session = get_session()
+    total_records = len(data)
+    logger.info(f"Starting DB pipeline | Total Records: {total_records} | Batch Size: {batch_size}")
+
     try:
-        for i in range(0, len(data), batch_size):
+        for i in range(0, total_records, batch_size):
             chunk = data[i:i + batch_size]
+            logger.info(f"Processing batch {(i // batch_size) + 1} | Records: {len(chunk)}")
+
             bulk_upsert_schema(session, chunk)
             bulk_upsert_analytics(session, chunk)
+
             session.commit()
-    except Exception:
+            logger.info(f"Batch {(i // batch_size) + 1} committed successfully")
+
+        logger.info("DB pipeline completed successfully")
+
+    except Exception as e:
         session.rollback()
+        logger.error(f"DB pipeline failed | Error: {str(e)}", exc_info=True)
         raise
+
     finally:
         session.close()
+        logger.info("DB session closed")

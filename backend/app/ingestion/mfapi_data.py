@@ -333,12 +333,18 @@ class MFAPIFetcher:
 
             return final_results
 
-# if __name__ == "__main__":
-#     try:
-#         fetcher = MFAPIFetcher()
-#         days = 7
-#         schemes_list = fetcher.fetch_recent_active_schemes(days)
-#         data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list[:10]))
-#         logger.info("Execution completed successfully")
-#     except Exception as e:
-#         logger.error(f"Fatal error in main execution: {e}")
+def run_ingestion():
+    """Run mutual fund ingestion workflow"""
+    try:
+        fetcher = MFAPIFetcher()
+        days = 7
+        schemes_list = fetcher.fetch_recent_active_schemes(days)
+        data = asyncio.run(fetcher.fetch_schemes_from_list(schemes_list))
+        logger.info("NAV fetch | Execution completed successfully")
+        return data
+    except Exception as e:
+        logger.error(f"Fatal error in ingestion execution: {e}")
+        raise
+
+# raw_data = run_ingestion()
+# print(json.dumps(raw_data, indent=2))
